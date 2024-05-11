@@ -19,6 +19,10 @@ class Lock {
     this.timeoutSeconds = timeoutSeconds;
   }
 
+  /**
+   * Releases the lock on the resource.
+   * @returns {Promise<boolean>} - True if the lock was released, false if the lock was not found.
+   */
   async release() {
     const command = new DeleteItemCommand({
       TableName: this.locksTable,
@@ -47,6 +51,15 @@ class Lock {
   }
 }
 
+/**
+ * Acquires a lock on a resource.
+ * @param client - An AWS SDK v3 DynamoDBClient
+ * @param resourceName - The name of the resource being locked, e.g. MY_TABLE:MY_ITEM. Note that this
+ * does not have follow any formal format as long as all locks use the same format to identify a resource.
+ * @param locksTable - The name of the table where locks are stored. Defaults to "LOCKS".
+ * @param timeoutSeconds - The number of seconds before the lock expires. Defaults to 600 (10 minutes).
+ * @returns {Promise<Lock|null>} - A lock object if the lock was acquired, or null if the resource is already locked.
+ */
 const acquireLock = async (
   client,
   resourceName,
