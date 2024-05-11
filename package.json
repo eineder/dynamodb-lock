@@ -1,0 +1,16 @@
+{
+  "name": "dynamodb-lock",
+  "version": "1.0.0",
+  "description": "",
+  "main": "lock.js",
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
+  },
+  "author": "eineder",
+  "license": "MIT",
+  "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.569.0",
+    "@types/jest": "^29.5.12",
+    "jest": "^29.7.0"
+  }
+}
