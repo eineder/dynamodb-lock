@@ -57,19 +57,20 @@ class Lock {
  * @param resourceName - The name of the resource being locked, e.g. MY_TABLE:MY_ITEM. Note that this
  * does not have follow any formal format as long as all locks use the same format to identify a resource.
  * @param locksTable - The name of the table where locks are stored. Defaults to "LOCKS".
- * @param timeoutSeconds - The number of seconds before the lock expires. Defaults to 600 (10 minutes).
+ * @param expiresAfterSeconds - The number of seconds before the lock expires. Defaults to 600 (10 minutes).
+ * @param giveUpAfterSeconds - The number of seconds to wait for the lock to be acquired before giving up.
  * @returns {Promise<Lock|null>} - A lock object if the lock was acquired, or null if the resource is already locked.
  */
 async function acquireLock(
   client,
   resourceName,
   locksTable = "LOCKS",
-  timeoutSeconds = 600,
+  expiresAfterSeconds = 600,
   giveUpAfterSeconds = 10
 ) {
   const transactionId = crypto.randomUUID();
   const command = createUpdateCommand(
-    timeoutSeconds,
+    expiresAfterSeconds,
     locksTable,
     resourceName,
     transactionId
@@ -82,14 +83,22 @@ async function acquireLock(
       resourceName,
       transactionId,
       locksTable,
-      timeoutSeconds
+      expiresAfterSeconds
     );
 
   const giveUpAt = Date.now() + giveUpAfterSeconds * 1000;
   while (!locked && Date.now() < giveUpAt) {
-    console.log(`${giveUpAt - Date.now()} - Waiting for lock...\n`);
+    console.log(
+      `${giveUpAt - Date.now()} ms left waiting for lock to be released...`
+    );
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    locked = await sendUpdateCommand(client, command);
+    const newCommand = createUpdateCommand(
+      expiresAfterSeconds,
+      locksTable,
+      resourceName,
+      transactionId
+    );
+    locked = await sendUpdateCommand(client, newCommand);
   }
 
   if (locked)
@@ -98,7 +107,7 @@ async function acquireLock(
       resourceName,
       transactionId,
       locksTable,
-      timeoutSeconds
+      expiresAfterSeconds
     );
 
   return null;
@@ -118,14 +127,14 @@ async function sendUpdateCommand(client, command) {
 }
 
 function createUpdateCommand(
-  timeoutSeconds,
+  expiresAfterSeconds,
   locksTable,
   resourceName,
   transactionId
 ) {
   const now = new Date().toISOString();
-  const timeoutRaw = Date.now() + timeoutSeconds * 1000;
-  const expiresAt = new Date(timeoutRaw).toISOString();
+  const expiresAtRaw = Date.now() + expiresAfterSeconds * 1000;
+  const expiresAt = new Date(expiresAtRaw).toISOString();
   const command = new UpdateItemCommand({
     TableName: locksTable,
     Key: {
