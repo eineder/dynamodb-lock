@@ -60,13 +60,69 @@ class Lock {
  * @param timeoutSeconds - The number of seconds before the lock expires. Defaults to 600 (10 minutes).
  * @returns {Promise<Lock|null>} - A lock object if the lock was acquired, or null if the resource is already locked.
  */
-const acquireLock = async (
+async function acquireLock(
   client,
   resourceName,
   locksTable = "LOCKS",
-  timeoutSeconds = 600
-) => {
+  timeoutSeconds = 600,
+  giveUpAfterSeconds = 10
+) {
   const transactionId = crypto.randomUUID();
+  const command = createUpdateCommand(
+    timeoutSeconds,
+    locksTable,
+    resourceName,
+    transactionId
+  );
+  let locked = await sendUpdateCommand(client, command);
+
+  if (locked)
+    return new Lock(
+      client,
+      resourceName,
+      transactionId,
+      locksTable,
+      timeoutSeconds
+    );
+
+  const giveUpAt = Date.now() + giveUpAfterSeconds * 1000;
+  while (!locked && Date.now() < giveUpAt) {
+    console.log(`${giveUpAt - Date.now()} - Waiting for lock...\n`);
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    locked = await sendUpdateCommand(client, command);
+  }
+
+  if (locked)
+    return new Lock(
+      client,
+      resourceName,
+      transactionId,
+      locksTable,
+      timeoutSeconds
+    );
+
+  return null;
+}
+
+async function sendUpdateCommand(client, command) {
+  try {
+    await client.send(command);
+    return true;
+  } catch (err) {
+    if (err.name === "ConditionalCheckFailedException") {
+      // Item already locked
+      return false;
+    }
+    throw err;
+  }
+}
+
+function createUpdateCommand(
+  timeoutSeconds,
+  locksTable,
+  resourceName,
+  transactionId
+) {
   const now = new Date().toISOString();
   const timeoutRaw = Date.now() + timeoutSeconds * 1000;
   const expiresAt = new Date(timeoutRaw).toISOString();
@@ -85,22 +141,7 @@ const acquireLock = async (
       ":now": { S: now },
     },
   });
-  try {
-    await client.send(command);
-    return new Lock(
-      client,
-      resourceName,
-      transactionId,
-      locksTable,
-      timeoutSeconds
-    );
-  } catch (err) {
-    if (err.name === "ConditionalCheckFailedException") {
-      // Item already locked
-      return null;
-    }
-    throw err;
-  }
-};
+  return command;
+}
 
 module.exports = { acquireLock };
