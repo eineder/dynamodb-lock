@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const { acquireLock } = require("../lock");
+const { acquireLock, LockTableNotFoundError } = require("../lock");
 const { DynamoDBClient } = require("@aws-sdk/client-dynamodb");
 const { createPrerequisites, clearLocks } = require("./prerequisites");
 
@@ -106,6 +106,22 @@ describe("Given a locks table exists", () => {
 
       const lock2 = await acquireLock(client, RESOURCE_NAME, LOCKS_TABLE);
       expect(lock2).toBeDefined();
+    });
+  });
+});
+
+describe("Given a locks table does not exist", () => {
+  let client;
+  beforeAll(async () => {
+    client = new DynamoDBClient({ region: AWS_REGION });
+  });
+
+  describe("When calling acquireLock", () => {
+    it("Throws LockTableNotFoundError error", async () => {
+      const RESOURCE_NAME = resourceName();
+      await expect(
+        acquireLock(client, RESOURCE_NAME, "NonExistentTable")
+      ).rejects.toThrow(LockTableNotFoundError);
     });
   });
 });

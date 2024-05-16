@@ -4,6 +4,13 @@ const {
 } = require("@aws-sdk/client-dynamodb");
 const crypto = require("crypto");
 
+class LockTableNotFoundError extends Error {
+  constructor(lockTableName) {
+    super(`Lock table '${lockTableName}' not found.`);
+    this.name = "LockTableNotFoundError";
+  }
+}
+
 class Lock {
   constructor(
     client,
@@ -118,6 +125,9 @@ async function sendUpdateCommand(client, command) {
     await client.send(command);
     return true;
   } catch (err) {
+    if (err.name === "ResourceNotFoundException") {
+      throw new LockTableNotFoundError(command.TableName);
+    }
     if (err.name === "ConditionalCheckFailedException") {
       // Item already locked
       return false;
@@ -153,4 +163,4 @@ function createUpdateCommand(
   return command;
 }
 
-module.exports = { acquireLock };
+module.exports = { acquireLock, LockTableNotFoundError };
