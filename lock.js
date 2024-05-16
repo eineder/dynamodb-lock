@@ -1,4 +1,5 @@
 const {
+  CreateTableCommand,
   UpdateItemCommand,
   DeleteItemCommand,
 } = require("@aws-sdk/client-dynamodb");
@@ -8,6 +9,23 @@ class LockTableNotFoundError extends Error {
   constructor(lockTableName) {
     super(`Lock table '${lockTableName}' not found.`);
     this.name = "LockTableNotFoundError";
+  }
+}
+
+async function createLocksTable(client, locksTable = "LOCKS") {
+  try {
+    const command = new CreateTableCommand({
+      TableName: locksTable,
+      KeySchema: [{ AttributeName: "PK", KeyType: "HASH" }],
+      AttributeDefinitions: [{ AttributeName: "PK", AttributeType: "S" }],
+      BillingMode: "PAY_PER_REQUEST",
+    });
+    await client.send(command);
+    console.log(`Table '${locksTable}' created.`);
+  } catch (err) {
+    if (!(err.name === "ResourceInUseException")) {
+      throw err;
+    }
   }
 }
 
@@ -163,4 +181,4 @@ function createUpdateCommand(
   return command;
 }
 
-module.exports = { acquireLock, LockTableNotFoundError };
+module.exports = { acquireLock, createLocksTable, LockTableNotFoundError };

@@ -1,20 +1,8 @@
 const dynamodb = require("@aws-sdk/client-dynamodb");
+const { createLocksTable } = require("../lock");
 
 const createPrerequisites = async (client, locksTable) => {
-  try {
-    const command = new dynamodb.CreateTableCommand({
-      TableName: locksTable,
-      KeySchema: [{ AttributeName: "PK", KeyType: "HASH" }],
-      AttributeDefinitions: [{ AttributeName: "PK", AttributeType: "S" }],
-      BillingMode: "PAY_PER_REQUEST",
-    });
-    await client.send(command);
-    console.log(`Table '${locksTable}' created.`);
-  } catch (err) {
-    if (!(err.name === "ResourceInUseException")) {
-      throw err;
-    }
-  }
+  await createLocksTable(client, locksTable);
 };
 
 const clearLocks = async (client, locksTable) => {
